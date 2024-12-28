@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Simple Amazon Lex V2 bot with Lambda integration'
+
+Resources:
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  HelloWorldFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Event:', JSON.stringify(event, null, 2));
+            return {
+              sessionState: {
+                dialogAction: {
+                  type: 'Close'
+                },
+                intent: {
+                  name: event.sessionState.intent.name,
+                  state: 'Fulfilled'
+                }
+              },
+              messages: [
+                {
+                  contentType: 'PlainText',
+                  content: 'Hello World!'
+                }
+              ]
+            };
+          }
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 128
+
+  LexLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref HelloWorldFunction
+      Principal: lexv2.amazonaws.com
+      SourceArn: !Sub 'arn:aws:lex:${AWS::Region}:${AWS::AccountId}:bot-alias/*'
+
+  LexServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lexv2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LexV2BasicPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - polly:SynthesizeSpeech
+                  - comprehend:DetectSentiment
+                  - lambda:InvokeFunction
+                Resource: '*'
+      Description: 'IAM Role for Lex V2 Bot'
+      RoleName: !Sub '${AWS::StackName}-lex-role'
+
+  SimpleChatBot:
+    Type: 'AWS::Lex::Bot'
+    Properties:
+      Name: SimpleChatBot
+      Description: 'A simple chatbot created with CloudFormation'
+      RoleArn: !GetAtt LexServiceRole.Arn
+      DataPrivacy:
+        ChildDirected: false
+      IdleSessionTTLInSeconds: 300
+      AutoBuildBotLocales: true
+      TestBotAliasSettings:
+        BotAliasLocaleSettings:
+          - LocaleId: ja_JP
+            BotAliasLocaleSetting:
+              Enabled: true
+              CodeHookSpecification:
+                LambdaCodeHook:
+                  CodeHookInterfaceVersion: '1.0'
+                  LambdaArn: !GetAtt HelloWorldFunction.Arn
+      BotLocales:
+        - LocaleId: ja_JP
+          NluConfidenceThreshold: 0.40
+          VoiceSettings:
+            VoiceId: Mizuki
+          Intents:
+            - Name: HelloIntent
+              Description: 'Simple greeting intent'
+              SampleUtterances:
+                - Utterance: こんにちは
+                - Utterance: はじめまして
+                - Utterance: やあ
+              DialogCodeHook:
+                Enabled: false
+              FulfillmentCodeHook:
+                Enabled: false
+              InitialResponseSetting:
+                InitialResponse:
+                  MessageGroupsList:
+                    - Message:
+                        PlainTextMessage:
+                          Value: こんにちは世界！
+            - Name: LambdaIntent
+              Description: 'Intent to trigger Lambda function'
+              SampleUtterances:
+                - Utterance: lambda
+              FulfillmentCodeHook:
+                Enabled: true
+            - Name: FallbackIntent
+              Description: 'Default intent when no other intent matches'
+              ParentIntentSignature: AMAZON.FallbackIntent
+
+  BotVersion:
+    Type: 'AWS::Lex::BotVersion'
+    DependsOn: SimpleChatBot
+    Properties:
+      BotId: !Ref SimpleChatBot
+      BotVersionLocaleSpecification:
+        - LocaleId: ja_JP
+          BotVersionLocaleDetails:
+            SourceBotVersion: DRAFT
+
+  BotAlias:
+    Type: 'AWS::Lex::BotAlias'
+    DependsOn: BotVersion
+    Properties:
+      BotAliasName: prod
+      BotId: !Ref SimpleChatBot
+      BotAliasLocaleSettings:
+        - LocaleId: ja_JP
+          BotAliasLocaleSetting:
+            Enabled: true
+            CodeHookSpecification:
+              LambdaCodeHook:
+                CodeHookInterfaceVersion: '1.0'
+                LambdaArn: !GetAtt HelloWorldFunction.Arn
+      BotVersion: '1'
+      SentimentAnalysisSettings:
+        DetectSentiment: false
+
+Outputs:
+  BotId:
+    Description: 'The ID of the created bot'
+    Value: !Ref SimpleChatBot
+  BotAliasId:
+    Description: 'The ID of the created bot alias'
+    Value: !Ref BotAlias
+  RoleArn:
+    Description: 'The ARN of the IAM role'
+    Value: !GetAtt LexServiceRole.Arn
+  LambdaArn:
+    Description: 'The ARN of the Lambda function'
+    Value: !GetAtt HelloWorldFunction.Arn
