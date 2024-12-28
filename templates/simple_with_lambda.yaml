@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Simple Amazon Lex V2 bot with Lambda integration'
+Description: 'Simple Amazon Lex V2 bot with Python Lambda integration'
 
 Resources:
   LambdaExecutionRole:
@@ -18,31 +18,37 @@ Resources:
   HelloWorldFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      Handler: index.handler
+      Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         ZipFile: |
-          exports.handler = async (event) => {
-            console.log('Event:', JSON.stringify(event, null, 2));
-            return {
-              sessionState: {
-                dialogAction: {
-                  type: 'Close'
-                },
-                intent: {
-                  name: event.sessionState.intent.name,
-                  state: 'Fulfilled'
-                }
-              },
-              messages: [
-                {
-                  contentType: 'PlainText',
-                  content: 'Hello World!'
-                }
-              ]
-            };
-          }
-      Runtime: nodejs18.x
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+              logger.info(f'Event: {json.dumps(event)}')
+              
+              return {
+                  'sessionState': {
+                      'dialogAction': {
+                          'type': 'Close'
+                      },
+                      'intent': {
+                          'name': event['sessionState']['intent']['name'],
+                          'state': 'Fulfilled'
+                      }
+                  },
+                  'messages': [
+                      {
+                          'contentType': 'PlainText',
+                          'content': 'Hello World!'
+                      }
+                  ]
+              }
+      Runtime: python3.12
       Timeout: 30
       MemorySize: 128
 
