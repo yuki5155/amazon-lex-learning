@@ -48,8 +48,16 @@ Resources:
                 - Utterance: こんにちは
                 - Utterance: はじめまして
                 - Utterance: やあ
+              DialogCodeHook:
+                Enabled: false
               FulfillmentCodeHook:
                 Enabled: false
+              InitialResponseSetting:
+                InitialResponse:
+                  MessageGroupsList:
+                    - Message:
+                        PlainTextMessage:
+                          Value: こんにちは世界！
             - Name: FallbackIntent
               Description: 'Default intent when no other intent matches'
               ParentIntentSignature: AMAZON.FallbackIntent
