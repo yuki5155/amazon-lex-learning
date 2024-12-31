@@ -9,13 +9,7 @@
 		"dockerfile": "../Dockerfile"
 	},
 	"features": {
-		"ghcr.io/devcontainers/features/node:1": {
-			"nodeGypDependencies": true,
-			"installYarnUsingApt": true,
-			"version": "18",
-			"pnpmVersion": "latest",
-			"nvmVersion": "latest"
-		}
+
 	}
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
