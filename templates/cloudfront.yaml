@@ -10,6 +10,13 @@ Parameters:
       - stg
       - prod
     Description: Environment name
+  DomainName:
+    Type: String
+    Description: Custom domain name for CloudFront distribution
+  
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID for the domain
 
 Resources:
   S3Bucket:
@@ -56,6 +63,22 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2  # CloudFrontのホストゾーンID（固定値）
+        EvaluateTargetHealth: false
 
   CloudFrontOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
@@ -106,10 +129,15 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: /index.html
         ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+          AcmCertificateArn: !Ref Certificate
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+
         PriceClass: PriceClass_100
         HttpVersion: http2
         IPV6Enabled: true
+        Aliases:
+          - !Ref DomainName
 
 Outputs:
   BucketName:
